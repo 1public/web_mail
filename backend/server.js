@@ -17,7 +17,7 @@ const app = express();
 
 // Middlewares
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', "https://web-mail-nt8k.onrender.com", "https://web-mail-system.vercel.app"],
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', "https://web-mail-3ooi.onrender.com", "https://web-mail-dusky.vercel.app"],
   credentials: true
 }));
 app.use(bodyParser.json({ limit: '50mb' }));
