@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', function() {
         'X-Mailer': 'MarketingMailSystem',
         'X-MS-Exchange-Organization-AuthAs': 'Internal',
         'X-MS-Exchange-Organization-AuthMechanism': '04',
-        'X-MS-Exchange-Organization-AuthSource': 'http://localhost:3000',
+        'X-MS-Exchange-Organization-AuthSource': 'https://web-mail-3ooi.onrender.com',
       }
     };
 
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     try {
-      const response = await fetch('http://localhost:3000/api/send', {
+      const response = await fetch('https://web-mail-3ooi.onrender.com/api/send', {
         method: 'POST',
         body: formData
       });
@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   function loadInbox() {
-    fetch('http://localhost:3000/api/inbox')
+    fetch('https://web-mail-3ooi.onrender.com/api/inbox')
       .then(response => {
         if (!response.ok) {
           apiAvailable = false;
