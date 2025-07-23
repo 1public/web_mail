@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email System</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><i class="fas fa-envelope"></i> Email System</h1>
+      <div class="user-info">
+        <span>Admin User</span>
+        <i class="fas fa-user-circle"></i>
+      </div>
+    </header>
+    
+    <div class="mail-app">
+      <aside class="sidebar">
+        <button class="compose-btn"><i class="fas fa-plus"></i> Compose</button>
+        <nav>
+          <ul>
+            <li class="active"><i class="fas fa-inbox"></i> Inbox</li>
+            <li><i class="fas fa-paper-plane"></i> Sent</li>
+            <li><i class="fas fa-trash"></i> Trash</li>
+          </ul>
+        </nav>
+      </aside>
+      
+      <main class="mail-content">
+        <div class="mail-list">
+          <div class="mail-list-header">
+            <h2><i class="fas fa-inbox"></i> Inbox</h2>
+            <div class="search-box">
+              <input type="text" placeholder="Search emails...">
+              <button><i class="fas fa-search"></i></button>
+            </div>
+          </div>
+          
+          <div class="emails" id="emailList">
+            <!-- Emails will be loaded here -->
+          </div>
+        </div>
+        
+        <div class="email-view" id="emailView" style="display: none;">
+          <!-- Single email view will be shown here -->
+        </div>
+      </main>
+    </div>
+    
+    <!-- Compose Email Modal -->
+    <div class="modal" id="composeModal">
+      <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <h2><i class="fas fa-envelope"></i> New Message</h2>
+        
+        <form id="composeForm">
+          <div class="form-group">
+            <label for="from">From:</label>
+            <input type="email" id="from" name="from" required>
+          </div>
+          <div class="form-group">
+            <label for="senderName">Sender Name:</label>
+            <input type="text" id="senderName" name="senderName" required>
+          </div>
+          <div class="form-group">
+            <label for="replyTo">Reply To:</label>
+            <input type="email" id="replyTo" name="replyTo">
+          </div>
+          <div class="form-group">
+            <label for="to">To: <small>(separate with commas for multiple)</small></label>
+            <input type="text" id="to" name="to" required>
+          </div>
+          <div class="form-group">
+            <label for="cc">CC:</label>
+            <input type="text" id="cc" name="cc">
+          </div>
+          <div class="form-group">
+            <label for="bcc">BCC:</label>
+            <input type="text" id="bcc" name="bcc">
+          </div>
+          <div class="form-group">
+            <label for="subject">Subject:</label>
+            <input type="text" id="subject" name="subject" required>
+          </div>
+          
+          <div class="form-group">
+            <label>Message Type:</label>
+            <div class="toggle-container">
+              <button type="button" class="toggle-btn active" data-type="text">Text</button>
+              <button type="button" class="toggle-btn" data-type="html">HTML</button>
+            </div>
+          </div>
+          
+          <div class="form-group" id="text-editor">
+            <textarea id="body" name="body" rows="10" required></textarea>
+          </div>
+          
+          <div class="form-group" id="html-editor" style="display: none;">
+            <textarea id="htmlContent" name="htmlContent" rows="10"></textarea>
+            <small>HTML content will be used if provided</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="attachments">Attachments:</label>
+            <input type="file" id="attachments" name="attachments" multiple>
+            <div id="attachmentList" class="attachment-list" style="display: none;"></div>
+          </div>
+          
+          <div class="form-group">
+            <label for="signature">Signature (Optional):</label>
+            <textarea id="signature" name="signature" rows="4" placeholder="John Doe"></textarea>
+          </div>
+          
+          <button type="submit" class="send-btn">
+            <i class="fas fa-paper-plane"></i> Send
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <script src="js/script.js"></script>
+</body>
+</html>
