@@ -12,38 +12,108 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+
 // Initialize app
 const app = express();
 
 // Middlewares
+app.use(helmet());
+app.use(cookieParser());
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', "https://web-mail-3ooi.onrender.com", "https://web-mail-dusky.vercel.app"],
+  origin: process.env.FRONTEND_URL || ['http://localhost:3000', 'http://127.0.0.1:3000', "https://web-mail-dusky.vercel.app"],
   credentials: true
 }));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname, '../public/')));
-
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
 app.use(express.json());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 app.use(limiter);
 
-// Hardcoded admin credentials (in production, use a proper database)
+// Hardcoded admin credentials
 const ADMIN_USER = process.env.ADMIN_USER;
-const ADMIN_PASS_HASH = bcrypt.hashSync(process.env.ADMIN_PASS, 10);
-const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_PASS_HASH = process.env.ADMIN_PASS ? bcrypt.hashSync(process.env.ADMIN_PASS, 10) : null;
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+
+// Email transporter setup - UPDATED CONFIG FOR RENDER
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Use TLS instead of SSL
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  connectionTimeout: 30000, // 30 seconds
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+  pool: true,
+  maxConnections: 1, // Reduce for Render's limitations
+  rateDelta: 1000,
+  rateLimit: 5
+});
+
+// Enhanced transporter verification
+async function verifyTransporter() {
+  try {
+    await transporter.verify();
+    console.log('📧 Email server is ready');
+    return true;
+  } catch (error) {
+    console.error('❌ Email config error:', error);
+    
+    // Specific error messages for better debugging
+    if (error.code === 'ETIMEDOUT') {
+      console.error('🕒 Connection timeout - Check network/firewall settings');
+    } else if (error.code === 'EAUTH') {
+      console.error('🔐 Authentication failed - Check email credentials');
+      console.error('💡 Tip: Use Gmail App Password instead of regular password');
+    } else if (error.code === 'ENOTFOUND') {
+      console.error('🌐 Network error - Cannot reach SMTP server');
+    } else if (error.code === 'ECONNREFUSED') {
+      console.error('🚫 Connection refused - Check port and host settings');
+    }
+    return false;
+  }
+}
+
+// Verify on startup
+verifyTransporter();
+
+// IMAP configuration (for receiving)
+const imap = new Imap({
+  user: process.env.EMAIL_USER,
+  password: process.env.EMAIL_PASS,
+  host: 'imap.gmail.com',
+  port: 993,
+  tls: true,
+  tlsOptions: { rejectUnauthorized: false },
+  connTimeout: 30000,
+  authTimeout: 30000
+});
+
+// Configure storage for attachments
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads/';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ storage });
 
 // Login endpoint
 app.post('/api/login', async (req, res) => {
@@ -132,45 +202,6 @@ function authenticateToken(req, res, next) {
     next();
   });
 }
- 
-// Configure storage for attachments
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-
-const upload = multer({ storage });
-
-// Email transporter setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  pool: true,
-  maxConnections: 5,
-  rateLimit: 5
-});
-
-// IMAP configuration (for receiving)
-const imap = new Imap({
-  user: process.env.EMAIL_USER,
-  password: process.env.EMAIL_PASS,
-  host: 'imap.gmail.com',
-  port: 993,
-  tls: true,
-  tlsOptions: { rejectUnauthorized: false }
-});
-
 
 // Function to fetch emails
 function fetchEmails() {
@@ -232,21 +263,9 @@ function fetchEmails() {
   });
 }
 
-
-
-// Verify email configuration
-transporter.verify((error) => {
-  if (error) {
-    console.error('❌ Email config error:', error);
-  } else {
-    console.log('📧 Email server is ready');
-  }
-});
-
 // ==================== API ENDPOINTS ====================
 
 // 1. Get Inbox Emails
-// API Endpoints
 app.get('/api/inbox', async (req, res) => {
   try {
     const emails = await fetchEmails();
@@ -260,6 +279,14 @@ app.get('/api/inbox', async (req, res) => {
 // 2. Send Single Email
 app.post('/api/send', upload.array('attachments'), async (req, res) => {
   try {
+    // Check if email server is configured
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      return res.status(500).json({ 
+        error: 'Email server not configured',
+        details: 'EMAIL_USER and EMAIL_PASS environment variables are required'
+      });
+    }
+
     const emailData = JSON.parse(req.body.data);
     const { from, senderName, to, subject, text, html, cc, bcc, replyTo } = emailData;
     
@@ -272,7 +299,7 @@ app.post('/api/send', upload.array('attachments'), async (req, res) => {
     })) || [];
 
     const mailOptions = {
-      from: `"${displayName}" <${senderEmail}>`, // 👈 Sender name + email
+      from: `"${displayName}" <${senderEmail}>`,
       to: Array.isArray(to) ? to : to.split(','),
       cc: cc ? (Array.isArray(cc) ? cc : cc.split(',')) : undefined,
       bcc: bcc ? (Array.isArray(bcc) ? bcc : bcc.split(',')) : undefined,
@@ -299,6 +326,16 @@ app.post('/api/send', upload.array('attachments'), async (req, res) => {
     });
   } catch (error) {
     console.error('Send error:', error);
+    
+    // Clean up attachments even on error
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+    }
+
     res.status(500).json({ 
       error: 'Failed to send email',
       details: error.message 
@@ -306,10 +343,17 @@ app.post('/api/send', upload.array('attachments'), async (req, res) => {
   }
 });
 
-
 // 3. Send Marketing Campaign
 app.post('/api/send-campaign', upload.array('attachments'), async (req, res) => {
   try {
+    // Check if email server is configured
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      return res.status(500).json({ 
+        error: 'Email server not configured',
+        details: 'EMAIL_USER and EMAIL_PASS environment variables are required'
+      });
+    }
+
     const emailData = JSON.parse(req.body.data);
     const { from, recipients, subject, text, html } = emailData;
     
@@ -319,23 +363,29 @@ app.post('/api/send-campaign', upload.array('attachments'), async (req, res) => 
       path: file.path
     })) || [];
 
-    const results = await Promise.all(
-      toList.map(async to => {
-        try {
-          const info = await transporter.sendMail({
-            from: from || process.env.EMAIL_USER,
-            to,
-            subject,
-            text,
-            html: html || text,
-            attachments
-          });
-          return { to, success: true, messageId: info.messageId };
-        } catch (error) {
-          return { to, success: false, error: error.message };
+    // Rate limiting for campaign emails
+    const results = [];
+    for (let i = 0; i < toList.length; i++) {
+      const to = toList[i];
+      try {
+        const info = await transporter.sendMail({
+          from: from || process.env.EMAIL_USER,
+          to,
+          subject,
+          text,
+          html: html || text,
+          attachments
+        });
+        results.push({ to, success: true, messageId: info.messageId });
+        
+        // Small delay between emails to avoid rate limiting
+        if (i < toList.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      })
-    );
+      } catch (error) {
+        results.push({ to, success: false, error: error.message });
+      }
+    }
 
     // Clean up attachments
     attachments.forEach(att => {
@@ -353,6 +403,16 @@ app.post('/api/send-campaign', upload.array('attachments'), async (req, res) => 
     });
   } catch (error) {
     console.error('Campaign error:', error);
+    
+    // Clean up attachments even on error
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+    }
+
     res.status(500).json({ 
       error: 'Failed to send campaign',
       details: error.message 
@@ -361,36 +421,49 @@ app.post('/api/send-campaign', upload.array('attachments'), async (req, res) => 
 });
 
 // 4. Health Check Endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  const emailStatus = await verifyTransporter();
+  
   res.json({ 
     status: 'ok',
     services: {
-      smtp: 'connected',
+      smtp: emailStatus ? 'connected' : 'disconnected',
       imap: 'connected',
-      database: 'connected'
+      server: 'running'
     },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// ==================== SERVER MANAGEMENT ====================
+// 5. Test Email Endpoint
+app.post('/api/test-email', async (req, res) => {
+  try {
+    const testMailOptions = {
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER, // Send to yourself
+      subject: 'Test Email from Render',
+      text: 'This is a test email from your deployed application on Render.',
+      html: '<p>This is a test email from your deployed application on Render.</p>'
+    };
 
-// Auto-shutdown server after 10 minutes of no activity
-// let lastActivity = Date.now();
-// const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes
-
-// app.use((req, res, next) => {
-//   lastActivity = Date.now();
-//   next();
-// });
-
-// setInterval(() => {
-//   const idleTime = Date.now() - lastActivity;
-//   if (idleTime > INACTIVITY_LIMIT) {
-//     console.log(`🛑 Server inactive for ${Math.floor(idleTime/1000)}s. Shutting down...`);
-//     process.exit();
-//   }
-// }, 60 * 1000);
+    const info = await transporter.sendMail(testMailOptions);
+    
+    res.json({ 
+      success: true, 
+      message: 'Test email sent successfully',
+      messageId: info.messageId 
+    });
+  } catch (error) {
+    console.error('Test email error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to send test email',
+      details: error.message,
+      code: error.code
+    });
+  }
+});
 
 // Start server
 const PORT = process.env.PORT || 3000;
@@ -400,5 +473,7 @@ app.listen(PORT, () => {
   - GET    /api/inbox
   - POST   /api/send
   - POST   /api/send-campaign
-  - GET    /api/health`);
+  - GET    /api/health
+  - POST   /api/test-email`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
