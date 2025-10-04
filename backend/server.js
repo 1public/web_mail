@@ -14,7 +14,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // Initialize app
 const app = express();
-app.set('trust-proxy', 1)
+
 // Middlewares
 app.use(cors({
   origin: ['http://localhost:3000', 'http://127.0.0.1:3000', "https://web-mail-3ooi.onrender.com", "https://web-mail-dusky.vercel.app"],
@@ -42,7 +42,7 @@ app.use(limiter);
 // Hardcoded admin credentials (in production, use a proper database)
 const ADMIN_USER = process.env.ADMIN_USER;
 const ADMIN_PASS_HASH = bcrypt.hashSync(process.env.ADMIN_PASS, 10);
-const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secure-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
 // Login endpoint
@@ -151,19 +151,15 @@ const upload = multer({ storage });
 
 // Email transporter setup
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
   pool: true,
   maxConnections: 5,
-  rateLimit: 5,
-  connectionTimeout: 10000
+  rateLimit: 5
 });
-
 
 // IMAP configuration (for receiving)
 const imap = new Imap({
