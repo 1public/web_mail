@@ -14,7 +14,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 // Initialize app
 const app = express();
-
+app.set('trust-proxy', 1)
 // Middlewares
 app.use(cors({
   origin: ['http://localhost:3000', 'http://127.0.0.1:3000', "https://web-mail-3ooi.onrender.com", "https://web-mail-dusky.vercel.app"],
